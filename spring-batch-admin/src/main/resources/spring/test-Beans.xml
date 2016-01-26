@@ -1,0 +1,95 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:batch="http://www.springframework.org/schema/batch" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xsi:schemaLocation="http://www.springframework.org/schema/batch
+        http://www.springframework.org/schema/batch/spring-batch-2.2.xsd
+        http://www.springframework.org/schema/beans 
+        http://www.springframework.org/schema/beans/spring-beans-4.1.xsd
+        http://www.springframework.org/schema/task
+        http://www.springframework.org/schema/task/spring-task.xsd
+    ">
+    
+    <import resource="classpath*:/META-INF/spring/batch/bootstrap/integration/configuration-context.xml" />
+    <import resource="classpath*:/META-INF/spring/batch/bootstrap/integration/file-context.xml" />
+    <import resource="classpath*:/META-INF/spring/batch/bootstrap/integration/launcher-context.xml" />
+    <import resource="classpath*:/META-INF/spring/batch/bootstrap/integration/restart-context.xml" />
+    <import resource="classpath*:/META-INF/spring/batch/bootstrap/resources/resources-context.xml" />
+    
+    <bean id="dummy" class="java.util.Date" />
+
+    <bean class="org.springframework.batch.core.scope.StepScope" />
+    
+    <!--  Use this to set additional properties on beans at run time -->
+    <bean id="placeholderProperties" class="com.gigold.pay.framework.bootstrap.SystemPropertyConfigure">
+        <property name="locations">
+            <list>
+                <value>/config/batch.properties</value>
+                <value>/config/system.properties</value>
+                <value>/config/server.properties</value>
+            </list>
+        </property>
+        <property name="systemPropertiesModeName" value="SYSTEM_PROPERTIES_MODE_OVERRIDE" />
+        <property name="ignoreResourceNotFound" value="true" />
+        <property name="ignoreUnresolvablePlaceholders" value="false" />
+        <property name="order" value="1" />
+    </bean>
+    
+    <!-- Job Repository: 用于保存批处理作业的状态 mysql数据库 -->
+    <bean id="jobRepository" class="org.springframework.batch.core.repository.support.JobRepositoryFactoryBean">  
+        <property name="dataSource" ref="dataSource" />  
+        <property name="transactionManager" ref="transactionManager"/>  
+        <property name="tablePrefix" value="T_J_" />
+        <property name="databaseType" value="mysql" />  
+    </bean>
+    
+    <!-- Job Launcher: 创建启动前的作业和作业状态 -->
+    <bean id="jobLauncher" class="org.springframework.batch.core.launch.support.SimpleJobLauncher">
+        <property name="jobRepository" ref="jobRepository" />
+        <property name="taskExecutor" ref="jobLauncherTaskExecutor" />
+    </bean>
+    
+    <task:executor id="jobLauncherTaskExecutor" pool-size="6" rejection-policy="ABORT" />
+    
+    <task:executor id="poolTaskExecutor" pool-size="600" rejection-policy="CALLER_RUNS" />
+    
+    <bean id="throttledTaskExecutor" class="org.springframework.batch.admin.util.ThrottledTaskExecutor">
+        <property name="taskExecutor" ref="poolTaskExecutor" />
+    </bean>
+    
+    <bean id="jobLoader" class="org.springframework.batch.core.configuration.support.AutomaticJobRegistrar">
+        <property name="applicationContextFactories">
+            <bean class="org.springframework.batch.core.configuration.support.ClasspathXmlApplicationContextsFactoryBean">
+                <property name="resources" value="classpath*:/META-INF/spring/batch/jobs/*.xml" />
+            </bean>
+        </property>
+        <property name="jobLoader">
+            <bean class="org.springframework.batch.core.configuration.support.DefaultJobLoader">
+                <property name="jobRegistry" ref="jobRegistry" />
+            </bean>
+        </property>
+    </bean>
+    
+    <bean id="jobRegistry" class="org.springframework.batch.core.configuration.support.MapJobRegistry" />
+    
+    <bean class="org.springframework.batch.core.configuration.support.JobRegistryBeanPostProcessor">
+        <property name="jobRegistry" ref="jobRegistry" />
+    </bean>
+    
+    <bean id="jobExplorer" class="org.springframework.batch.core.explore.support.JobExplorerFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="tablePrefix" value="T_J_"/>
+    </bean> 
+    
+    <bean id="jobService" class="org.springframework.batch.admin.service.SimpleJobServiceFactoryBean">
+        <property name="jobRepository" ref="jobRepository" />
+        <property name="jobLauncher" ref="jobLauncher" />
+        <property name="jobLocator" ref="jobRegistry" />
+        <property name="dataSource" ref="dataSource"/>
+        <property name="tablePrefix" value="T_J_"/>
+    </bean>
+
+    <task:scheduled-tasks>
+        <task:scheduled ref="jobService" method="removeInactiveExecutions" fixed-delay="${batch.job.service.reaper.interval}"/>
+    </task:scheduled-tasks>
+</beans>

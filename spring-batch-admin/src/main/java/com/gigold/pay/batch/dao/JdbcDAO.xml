@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.gigold.pay.batch.dao.IjdbcDAO">
+         
+         <resultMap id="productResultMap" type="com.gigold.pay.batch.bo.Product">
+            <id property="id" column="id" />
+            <result property="name" column="name" />
+            <result property="description" column="description" />
+            <result property="quantity" column="quantity" />
+         </resultMap>
+         
+         <insert id="insertProduct" parameterType="com.gigold.pay.batch.bo.Product" keyProperty="id">
+            <![CDATA[          
+             insert into product(id,name,description,quantity)
+	         values
+	         (#{id},#{name},#{description},#{quantity})
+	        ]]>  
+         </insert>
+         
+         <update id="updateProduct" parameterType="com.gigold.pay.batch.bo.Product">
+            <![CDATA[ 
+              UPDATE product
+              SET name = #{name}, description = #{description}, quantity = #{quantity}
+              WHERE id = #{id}
+            ]]>         
+         </update>
+         
+         <select id="queryProduct" parameterType="com.gigold.pay.batch.bo.Product" resultMap="productResultMap">
+            <![CDATA[ 
+	            SELECT 
+	            id, name, description, quantity
+	            FROM product 
+	            WHERE id=#{id} 
+            ]]>         
+         </select>
+</mapper>
